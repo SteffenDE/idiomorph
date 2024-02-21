@@ -18,7 +18,7 @@ var Idiomorph = (function () {
                 beforeNodeRemoved: noOp,
                 afterNodeRemoved: noOp,
                 beforeAttributeUpdated: noOp,
-
+                getNodeKey: (node) => node.id
             },
             head: {
                 style: 'merge',
@@ -110,7 +110,7 @@ var Idiomorph = (function () {
          * @returns {boolean}
          */
         function ignoreValueOfActiveElement(possibleActiveElement, ctx) {
-            return ctx.ignoreActiveValue && possibleActiveElement === document.activeElement;
+            return ctx.ignoreActiveValue && possibleActiveElement === document.activeElement && possibleActiveElement !== document.body;
         }
 
         /**
@@ -521,7 +521,7 @@ var Idiomorph = (function () {
                 morphStyle: config.morphStyle,
                 ignoreActive: config.ignoreActive,
                 ignoreActiveValue: config.ignoreActiveValue,
-                idMap: createIdMap(oldNode, newContent),
+                idMap: createIdMap(oldNode, newContent, config.callbacks.getNodeKey),
                 deadIds: new Set(),
                 callbacks: config.callbacks,
                 head: config.head
@@ -533,7 +533,7 @@ var Idiomorph = (function () {
                 return false;
             }
             if (node1.nodeType === node2.nodeType && node1.tagName === node2.tagName) {
-                if (node1.id !== "" && node1.id === node2.id) {
+                if (ctx.callbacks.getNodeKey(node1) !== "" && ctx.callbacks.getNodeKey(node1) === ctx.callbacks.getNodeKey(node2)) {
                     return true;
                 } else {
                     return getIdIntersectionCount(ctx, node1, node2) > 0;
@@ -800,7 +800,7 @@ var Idiomorph = (function () {
          * @param node {Element}
          * @param {Map<Node, Set<String>>} idMap
          */
-        function populateIdMapForNode(node, idMap) {
+        function populateIdMapForNode(node, idMap, getNodeKey) {
             let nodeParent = node.parentElement;
             // find all elements with an id property
             let idElements = node.querySelectorAll('[id]');
@@ -815,7 +815,7 @@ var Idiomorph = (function () {
                         idSet = new Set();
                         idMap.set(current, idSet);
                     }
-                    idSet.add(elt.id);
+                    idSet.add(getNodeKey(elt));
                     current = current.parentElement;
                 }
             }
@@ -831,10 +831,10 @@ var Idiomorph = (function () {
          * @param {Element} newContent  the new content to morph to
          * @returns {Map<Node, Set<String>>} a map of nodes to id sets for the
          */
-        function createIdMap(oldContent, newContent) {
+        function createIdMap(oldContent, newContent, getNodeKey) {
             let idMap = new Map();
-            populateIdMapForNode(oldContent, idMap);
-            populateIdMapForNode(newContent, idMap);
+            populateIdMapForNode(oldContent, idMap, getNodeKey);
+            populateIdMapForNode(newContent, idMap, getNodeKey);
             return idMap;
         }
 
@@ -860,7 +860,7 @@ var Idiomorph = (function () {
     htmx.defineExtension('morph', {
         isInlineSwap: function(swapStyle) {
             let config = createMorphConfig(swapStyle);
-            return config.swapStyle === "outerHTML" || config.swapStyle == null;
+            return config?.morphStyle === "outerHTML" || config?.morphStyle == null;
         },
         handleSwap: function (swapStyle, target, fragment) {
             let config = createMorphConfig(swapStyle);
